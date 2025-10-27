@@ -2,7 +2,9 @@ import requests
 import re
 import time
 import logging
+import threading
 from typing import Dict
+from flask import Flask
 
 # === Configuration ===
 BOT_TOKEN = "8329618002:AAFLi4Vsn-IQNdG9fplvMMQpx8UQ03VUm44"
@@ -20,9 +22,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-# === Functions ===
+# === Telegram Send Function ===
 def send_telegram_message(message: str) -> None:
-    """Send a message to all configured Telegram chats."""
     telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     for chat_id in CHAT_IDS:
         payload = {
@@ -38,8 +39,8 @@ def send_telegram_message(message: str) -> None:
         except requests.RequestException as e:
             logging.error(f"❌ Failed to send Telegram message to {chat_id}: {e}")
 
+# === Scraping Logic ===
 def get_stock_counts() -> Dict[str, int]:
-    """Fetch current stock counts for Men and Women from the target page."""
     try:
         response = requests.get(TARGET_URL, timeout=15)
         response.raise_for_status()
@@ -54,7 +55,7 @@ def get_stock_counts() -> Dict[str, int]:
         logging.error(f"⚠️ Unexpected error while parsing stock data: {e}")
         return {"Men": 0, "Women": 0}
 
-# === Main Monitoring Logic ===
+# === Monitor Thread ===
 def monitor_stock():
     previous_counts = {"Men": 0, "Women": 0}
     logging.info("👀 Stock monitoring started... checking every %s seconds", CHECK_INTERVAL)
@@ -66,7 +67,7 @@ def monitor_stock():
         total_stock = men_stock + women_stock
         logging.info(f"Checked stock — 👩 Women: {women_stock}, 👨 Men: {men_stock}, 🧮 Total: {total_stock}")
 
-        # Detect change
+        # Detect changes
         if counts != previous_counts:
             msg_parts = []
 
@@ -83,7 +84,6 @@ def monitor_stock():
             msg_parts.append(diff_line("👨 <b>Men</b>", previous_counts["Men"], men_stock))
             msg_parts.append(f"🧮 <b>Total Products:</b> <b>{total_stock}</b>")
 
-            # Message format
             message = (
                 "🛍️ <b>Shein Stock Update</b>\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
@@ -98,5 +98,17 @@ def monitor_stock():
 
         time.sleep(CHECK_INTERVAL)
 
+# === Flask Keep-Alive Server ===
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "🟢 Shein alert bot is running successfully!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=10000)
+
+# === Main ===
 if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
     monitor_stock()
