@@ -88,5 +88,5 @@ def monitor_stock():
 
         time.sleep(CHECK_INTERVAL)
 
-if name == "main":
+if __name__ == "__main__":
     monitor_stock()
